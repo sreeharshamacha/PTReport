@@ -42,26 +42,45 @@ public class ReportServiceImpl implements ReportService {
             throw new IllegalArgumentException("The provided JTL file is empty or invalid.");
         }
 
+        // Log first few timestamps to help debugging
+        log.info("First timestamp in file: {}", results.get(0).getTimeStamp());
+
         // Global stats
-        long minTime = results.stream().mapToLong(JmeterResult::getTimeStamp).min().orElse(0);
-        long maxTime = results.stream().mapToLong(JmeterResult::getTimeStamp).max().orElse(0);
+        long actualMin = results.stream().mapToLong(JmeterResult::getTimeStamp).min().orElse(0);
+        long actualMax = results.stream().mapToLong(JmeterResult::getTimeStamp).max().orElse(0);
+        log.info("JTL Data Range: {} to {}", actualMin, actualMax);
+
+        long minTime = actualMin;
+        long maxTime = actualMax;
         
         if ("Load Test".equals(testType) && startDate != null && endDate != null && !startDate.isEmpty() && !endDate.isEmpty()) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
-            LocalDateTime startDateTime = LocalDateTime.parse(startDate, formatter);
-            LocalDateTime endDateTime = LocalDateTime.parse(endDate, formatter);
-            minTime = startDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-            maxTime = endDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-            
-            final long filterStart = minTime;
-            final long filterEnd = maxTime;
-            
-            results = results.stream()
-                    .filter(r -> r.getTimeStamp() >= filterStart && r.getTimeStamp() <= filterEnd)
-                    .collect(Collectors.toList());
-                    
-            if (results.isEmpty()) {
-                throw new IllegalArgumentException("No JTL data found within the selected date range.");
+            try {
+                LocalDateTime startDateTime = LocalDateTime.parse(startDate);
+                LocalDateTime endDateTime = LocalDateTime.parse(endDate);
+                
+                if (startDateTime.isAfter(endDateTime)) {
+                    throw new IllegalArgumentException("Start date cannot be after end date");
+                }
+                
+                minTime = startDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                maxTime = endDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                
+                log.info("Filtering with range: {} to {}", minTime, maxTime);
+                
+                final long filterStart = minTime;
+                final long filterEnd = maxTime;
+                
+                List<JmeterResult> filteredResults = results.stream()
+                        .filter(r -> r.getTimeStamp() >= filterStart && r.getTimeStamp() <= filterEnd)
+                        .collect(Collectors.toList());
+                        
+                if (filteredResults.isEmpty()) {
+                    throw new IllegalArgumentException("No data available for the selected date range");
+                }
+                results = filteredResults;
+            } catch (Exception e) {
+                log.error("Error during date filtering: {}", e.getMessage());
+                throw e;
             }
         }
 
