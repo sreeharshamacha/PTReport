@@ -23,7 +23,7 @@ class ReportServiceImplTest {
         byte[] content = Files.readAllBytes(jtlPath);
         MultipartFile multipartFile = new MockMultipartFile("file", "sample.jtl", "text/csv", content);
         
-        ByteArrayInputStream reportStream = service.generateReport(multipartFile, "RUN-123", "Load");
+        ByteArrayInputStream reportStream = service.generateReport(multipartFile, "RUN-123", "Load Test", null, null);
         
         assertNotNull(reportStream);
         assertTrue(reportStream.available() > 0);
